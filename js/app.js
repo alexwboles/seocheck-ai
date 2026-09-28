@@ -46,9 +46,17 @@
     els.scoreBand.textContent = result.band;
     els.scoreBand.className = "band band-" + result.band.toLowerCase().replace(/ /g, "-");
 
+    // Score dial ring
+    var ring = document.getElementById("scoreRing");
+    if (ring) {
+      var CIRC = 2 * Math.PI * 54;
+      ring.style.strokeDasharray = CIRC.toFixed(1);
+      ring.style.strokeDashoffset = (CIRC * (1 - result.score / result.maxScore)).toFixed(1);
+    }
+
     // Sections + mini progress bars
     els.sections.innerHTML = "";
-    AUDIT_SECTIONS.forEach(function (section) {
+    AUDIT_SECTIONS.forEach(function (section, si) {
       var p = progress.filter(function (x) { return x.sectionId === section.id; })[0];
       var card = document.createElement("section");
       card.className = "card audit-section";
@@ -56,6 +64,7 @@
       var head = document.createElement("div");
       head.className = "section-head";
       head.innerHTML =
+        '<span class="sys-n">' + ("0" + (si + 1)) + "</span>" +
         '<h2>' + escapeHtml(section.title) + "</h2>" +
         '<div class="sec-progress"><div class="sec-bar"><div class="sec-fill" style="width:' + p.pct + '%"></div></div>' +
         '<span class="sec-pct">' + p.checked + "/" + p.total + "</span></div>";

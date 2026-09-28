@@ -9,32 +9,58 @@
 </head>
 <body>
 
-  <header class="hero">
-    <div class="wrap">
-      <h1>SEOCheck AI</h1>
+  <header class="deck">
+    <div class="wrap deck-in">
+      <div class="brand">
+        <svg class="radar" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21" fill="none" stroke="#0d9488" stroke-width="2" opacity=".55"/>
+          <circle cx="24" cy="24" r="14" fill="none" stroke="#0d9488" stroke-width="2" opacity=".75"/>
+          <circle cx="24" cy="24" r="7" fill="none" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="24" cy="24" r="3.5" fill="#0d9488"/>
+        </svg>
+        <div>
+          <strong>SEOCheck <em>AI</em></strong>
+          <span class="brand-sub">Local search command deck</span>
+        </div>
+      </div>
       <p class="tagline">Audit your local SEO in 10 minutes. Fix what matters first.</p>
-      <label for="businessName">Business name</label>
-      <input type="text" id="businessName" placeholder="e.g. Sunny Side Plumbing, Austin TX" autocomplete="organization">
+      <label class="target" for="businessName">
+        <span class="target-label">Business under audit</span>
+        <input type="text" id="businessName" placeholder="e.g. Sunny Side Plumbing, Austin TX" autocomplete="organization">
+      </label>
     </div>
+    <div class="deck-edge" aria-hidden="true"></div>
   </header>
 
   <main class="wrap">
 
     <section class="score-card" aria-live="polite">
-      <div class="score-row">
-        <span id="scoreText">0 / 100</span>
-        <span id="scoreBand" class="band band-needs-work">Needs work</span>
+      <div class="dial-wrap">
+        <svg class="dial" viewBox="0 0 120 120" role="img" aria-label="Audit score dial">
+          <circle class="dial-track" cx="60" cy="60" r="54"></circle>
+          <circle class="dial-fill" id="scoreRing" cx="60" cy="60" r="54"></circle>
+        </svg>
+        <div class="dial-center">
+          <span id="scoreText">0 / 100</span>
+        </div>
       </div>
-      <div class="score-track" role="progressbar" aria-label="Audit score">
-        <div id="scoreFill"></div>
+      <div class="score-info">
+        <span id="scoreBand" class="band band-needs-work">Needs work</span>
+        <p class="score-sub">Every checked item raises the dial. Work the action queue below in order — high impact first.</p>
+        <div class="score-track" role="progressbar" aria-label="Audit score">
+          <div id="scoreFill"></div>
+        </div>
       </div>
     </section>
 
     <div id="sections"></div>
 
-    <section class="card">
+    <section class="card queue-card">
       <div class="fix-head">
-        <h2>Prioritized fix list</h2>
+        <div>
+          <p class="kicker">Action queue</p>
+          <h2>Prioritized fix list</h2>
+        </div>
         <span class="count"><span id="fixCount">0</span> items to fix</span>
       </div>
       <ol id="fixList"></ol>
@@ -60,7 +86,8 @@
       </div>
     </div>
 
-    <section class="card">
+    <section class="card history-card">
+      <p class="kicker">Flight log</p>
       <h2>Audit history</h2>
       <ul id="historyList"></ul>
     </section>
