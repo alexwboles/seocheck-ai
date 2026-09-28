@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SEOCheck AI — audit your local SEO in 10 minutes. Fix what matters first. Free, private, no sign-up.">
+  <title>SEOCheck AI — Local SEO Audit Checklist</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="hero">
+    <div class="wrap">
+      <h1>SEOCheck AI</h1>
+      <p class="tagline">Audit your local SEO in 10 minutes. Fix what matters first.</p>
+      <label for="businessName">Business name</label>
+      <input type="text" id="businessName" placeholder="e.g. Sunny Side Plumbing, Austin TX" autocomplete="organization">
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section class="score-card" aria-live="polite">
+      <div class="score-row">
+        <span id="scoreText">0 / 100</span>
+        <span id="scoreBand" class="band band-needs-work">Needs work</span>
+      </div>
+      <div class="score-track" role="progressbar" aria-label="Audit score">
+        <div id="scoreFill"></div>
+      </div>
+    </section>
+
+    <div id="sections"></div>
+
+    <section class="card">
+      <div class="fix-head">
+        <h2>Prioritized fix list</h2>
+        <span class="count"><span id="fixCount">0</span> items to fix</span>
+      </div>
+      <ol id="fixList"></ol>
+    </section>
+
+    <div class="actions">
+      <button id="completeBtn" class="btn btn-primary">Complete audit &amp; save to history</button>
+      <button id="summaryBtn" class="btn btn-ghost">Generate summary</button>
+      <button id="settingsBtn" class="btn btn-ghost">Settings</button>
+      <button id="resetBtn" class="btn btn-ghost">Reset checklist</button>
+    </div>
+
+    <div id="summaryBox" class="summary-box" hidden></div>
+
+    <div id="settingsPanel" class="settings" hidden>
+      <h3>Settings</h3>
+      <p>Optional: enter an OpenAI API key to generate the audit summary with AI.
+         The key is stored only in your browser and is never required — without it
+         you get a local summary instead.</p>
+      <div class="row">
+        <input type="password" id="openaiKey" placeholder="sk-…" autocomplete="off" aria-label="OpenAI API key">
+        <button id="saveKeyBtn" class="btn btn-small btn-primary">Save key</button>
+      </div>
+    </div>
+
+    <section class="card">
+      <h2>Audit history</h2>
+      <ul id="historyList"></ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>SEOCheck AI · <span id="year"></span> · Your data never leaves this browser.</p>
+    </div>
+  </footer>
+
+  <script src="js/auditbank.js"></script>
+  <script src="js/logic.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
