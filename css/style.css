@@ -27,7 +27,7 @@ body {
 
 /* Header */
 .hero {
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%);
+  background: #1e3a8a;
   color: #fff;
   padding: 48px 0 40px;
 }
@@ -43,6 +43,7 @@ body {
 /* Score bar */
 .score-card {
   background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 24px;
@@ -64,7 +65,7 @@ body {
 }
 #scoreFill {
   height: 100%; width: 0;
-  background: linear-gradient(90deg, var(--accent), #60a5fa);
+  background: var(--accent);
   border-radius: 999px;
   transition: width 0.5s ease;
 }
@@ -84,7 +85,6 @@ body {
   gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
 }
 .section-head h2 { margin: 0; font-size: 1.15rem; }
-.sec-icon { margin-right: 4px; }
 .sec-progress { display: flex; align-items: center; gap: 8px; }
 .sec-bar { width: 120px; height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
 .sec-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width 0.4s ease; }
@@ -175,6 +175,11 @@ body {
 .h-score { color: var(--accent-dark); font-weight: 600; }
 
 footer { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 24px 0 40px; }
+
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 @media (max-width: 600px) {
   .hero h1 { font-size: 1.7rem; }

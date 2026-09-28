@@ -56,7 +56,7 @@
       var head = document.createElement("div");
       head.className = "section-head";
       head.innerHTML =
-        '<h2><span class="sec-icon">' + section.icon + "</span> " + escapeHtml(section.title) + "</h2>" +
+        '<h2>' + escapeHtml(section.title) + "</h2>" +
         '<div class="sec-progress"><div class="sec-bar"><div class="sec-fill" style="width:' + p.pct + '%"></div></div>' +
         '<span class="sec-pct">' + p.checked + "/" + p.total + "</span></div>";
       card.appendChild(head);
@@ -99,7 +99,7 @@
     els.fixCount.textContent = fixes.length;
     els.fixList.innerHTML = "";
     if (fixes.length === 0) {
-      els.fixList.innerHTML = '<li class="all-done">🎉 Nothing left to fix — your local SEO is in great shape.</li>';
+      els.fixList.innerHTML = '<li class="all-done">Nothing left to fix — your local SEO is in great shape.</li>';
     } else {
       fixes.forEach(function (f, idx) {
         var li = document.createElement("li");
