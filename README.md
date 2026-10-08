@@ -21,7 +21,11 @@ Features:
 - **Prioritized fix list** — unchecked items sorted by impact (high → medium → low), each with a "why it matters" tip
 - **Per-section progress bars** so you can see where you're weakest
 - **Progress saved in `localStorage`** (key `seocheck.v1`): business name, checked items, audit date
-- **Audit history** — complete an audit and it’s saved with date + score
+- **Audit history** — complete an audit and it’s saved with date + score, each entry showing its point change vs the previous audit
+- **Search the audit** — a search box filters the 28 items live so you can jump to what matters
+- **Filter the action queue** — narrow the prioritized fix list by impact level or section
+- **Copy action plan** — one click copies the full ranked fix list as plain text for a task manager or email
+- **Print report** — a clean printable audit report for clients or your files
 - **Plain-English summary** generated locally; optionally via OpenAI if you add your own key (never required)
 
 ## How scoring works

@@ -232,6 +232,37 @@ main.wrap { padding-top: 1.25rem; padding-bottom: 2.5rem; display: grid; gap: 1.
 .h-name { font-weight: 700; }
 .h-score { margin-left: auto; font-size: .88rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
+/* ---------- new: audit search, fix filters, history deltas, print ---------- */
+.audit-tools { display: flex; gap: .7rem; align-items: center; margin: 0 0 1rem; }
+.audit-tools input[type="search"] {
+  flex: 1; padding: .65rem .85rem; border: 1px solid var(--line); border-radius: 0;
+  font: inherit; font-size: .95rem; background: #fff; color: var(--ink);
+}
+.audit-tools input[type="search"]:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13, 148, 136, .15);
+}
+.search-note { font-size: .85rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.fix-filters { display: grid; grid-template-columns: 190px 1fr; gap: .6rem; margin: 0 0 .9rem; }
+.fix-filters select {
+  padding: .55rem .7rem; border: 1px solid var(--line); border-radius: 0;
+  font: inherit; font-size: .9rem; background: #fff; color: var(--ink);
+}
+.fix-filters select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13, 148, 136, .15); }
+.delta { font-weight: 800; font-size: .8rem; padding: .12rem .5rem; border-radius: 0; white-space: nowrap; }
+.delta-up { background: var(--green-soft); color: var(--green); }
+.delta-down { background: var(--red-soft); color: var(--red); }
+.delta-same { background: var(--slate-soft); color: var(--slate); }
+
+@media print {
+  .deck, .audit-tools, .actions, .settings, .summary-box, footer,
+  .fix-filters, .settingsPanel, input[type="checkbox"] + label::after { display: none !important; }
+  body { background: #fff; }
+  .wrap { max-width: 100%; }
+  .score-card, .card { box-shadow: none; break-inside: avoid; }
+  .check-item { break-inside: avoid; }
+  input[type="checkbox"] { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
 footer { border-top: 1px solid var(--line); margin-top: 1rem; }
 footer .wrap p { color: var(--muted); font-size: .85rem; padding: 1.1rem 0; margin: 0; }
 
@@ -251,6 +282,9 @@ button:focus-visible, input:focus-visible, a:focus-visible {
   .sec-progress { margin-left: 0; width: 100%; }
   .sec-bar { flex: 1; }
   .fix-rank { min-width: 1.6rem; font-size: 1.25rem; }
+  .fix-filters { grid-template-columns: 1fr; }
+  .audit-tools { flex-direction: column; align-items: stretch; }
+  .audit-tools input[type="search"] { width: 100%; }
   .h-score { margin-left: 0; width: 100%; }
   .actions .btn { flex: 1 1 100%; }
 }

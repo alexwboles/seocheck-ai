@@ -69,7 +69,65 @@ for(const [score,want] of cases){
 }
 "
 
-# 7: unknown ids in checkedIds are ignored (no crash, no phantom points)
+# 8: fix queue filters — user narrows to high-impact GBP items, then clears
+check "fix filters narrow the action queue" node -e "
+$PRELUDE
+const all=L.prioritizedFixes([],AUDIT_SECTIONS);
+const hi=L.filterFixes(all,{impact:'high'});
+if(!hi.every(f=>f.impact==='high')||hi.length===0) throw new Error('impact filter');
+const gbp=L.filterFixes(all,{sectionId:'gbp'});
+if(!gbp.every(f=>f.sectionId==='gbp')||gbp.length===0) throw new Error('section filter');
+const both=L.filterFixes(all,{impact:'high',sectionId:'gbp'});
+if(!both.every(f=>f.impact==='high'&&f.sectionId==='gbp')) throw new Error('combined');
+// ranks stay in priority order after filtering
+for(let i=1;i<both.length;i++){ if(L.IMPACT_RANK[both[i-1].impact]>L.IMPACT_RANK[both[i].impact]) throw new Error('order broken'); }
+"
+
+# 9: item search — 'review' finds review items across sections
+check "search finds items across sections" node -e "
+$PRELUDE
+const res=L.searchItems(AUDIT_SECTIONS,'review');
+if(res.length<3) throw new Error('expected 3+ matches, got '+res.length);
+if(!res.every(m=>m.item.label.toLowerCase().includes('review'))) throw new Error('non-matching result');
+"
+
+# 10: audit lifecycle with deltas — save two audits, second shows +pts
+check "history deltas show score progress" node -e "
+$PRELUDE
+const mem={d:{},getItem(k){return this.d[k]??null},setItem(k,v){this.d[k]=v}};
+const half=items.slice(0,14).map(i=>i.id);
+const r1=L.computeScore(half,AUDIT_SECTIONS);
+L.saveAudit(mem,{date:'2026-09-01',businessName:'Acme',score:r1.score,band:r1.band});
+const all=items.map(i=>i.id);
+const r2=L.computeScore(all,AUDIT_SECTIONS);
+L.saveAudit(mem,{date:'2026-10-01',businessName:'Acme',score:r2.score,band:r2.band});
+const h=L.historyWithDeltas(L.loadAudits(mem));
+if(h.length!==2) throw new Error('want 2 audits');
+if(h[0].delta!==null) throw new Error('first delta must be null');
+if(h[1].delta!==(r2.score-r1.score)||h[1].delta<=0) throw new Error('want positive delta, got '+h[1].delta);
+"
+
+# 11: copy action plan — full queue renders as numbered text with impacts
+check "action plan text is complete and ordered" node -e "
+$PRELUDE
+const fixes=L.prioritizedFixes([],AUDIT_SECTIONS);
+const r=L.computeScore([],AUDIT_SECTIONS);
+const txt=L.actionPlanText(r,fixes,'Acme Plumbing');
+const lines=txt.split('\n');
+if(lines.length!==30) throw new Error('want 28 fixes + header + blank, got '+lines.length);
+if(!lines[2].startsWith('1. [high impact]')) throw new Error('first fix not high impact: '+lines[2]);
+const last=lines[lines.length-1];
+if(!last.startsWith('28. [low impact]')) throw new Error('last fix not low impact: '+last);
+"
+
+# 12: search + filter + plan compose (search 'ssl', no fixes affected)
+check "search composes with scoring" node -e "
+$PRELUDE
+const res=L.searchItems(AUDIT_SECTIONS,'ssl');
+if(res.length!==1||res[0].item.id!=='web-ssl') throw new Error('ssl search: '+JSON.stringify(res.map(m=>m.item.id)));
+const fixes=L.prioritizedFixes([],AUDIT_SECTIONS);
+if(!fixes.some(f=>f.id==='web-ssl')) throw new Error('web-ssl missing from queue');
+"
 check "unknown checked ids are ignored" node -e "
 $PRELUDE
 const r=L.computeScore(['nope','alsono'],AUDIT_SECTIONS);

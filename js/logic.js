@@ -67,8 +67,57 @@ function sectionProgress(checkedIds, sections) {
   });
 }
 
-// ---- Storage helpers (pure: operate on a passed storage object) ----
-// Storage shape: { getItem(k), setItem(k, v), removeItem(k) } like localStorage.
+// filterFixes(fixes, { impact, sectionId }) — narrow the prioritized
+// action queue by impact level and/or section. Returns a new array.
+function filterFixes(fixes, opts) {
+  opts = opts || {};
+  return (fixes || []).filter(function (f) {
+    if (opts.impact && f.impact !== opts.impact) return false;
+    if (opts.sectionId && f.sectionId !== opts.sectionId) return false;
+    return true;
+  });
+}
+
+// searchItems(sections, query) — find audit items by label text.
+// Returns [{ sectionId, sectionTitle, item }] in section order.
+function searchItems(sections, query) {
+  var q = String(query || "").trim().toLowerCase();
+  if (!q) return [];
+  var out = [];
+  for (const s of sections) {
+    for (const item of s.items) {
+      if (item.label.toLowerCase().indexOf(q) >= 0) {
+        out.push({ sectionId: s.id, sectionTitle: s.title, item: item });
+      }
+    }
+  }
+  return out;
+}
+
+// historyWithDeltas(history) — annotate each audit (oldest first) with the
+// score change vs the previous audit: { delta: number|null }. Pure.
+function historyWithDeltas(history) {
+  return (history || []).map(function (h, i, arr) {
+    var prev = i > 0 ? arr[i - 1] : null;
+    return Object.assign({}, h, {
+      delta: prev ? (Number(h.score) - Number(prev.score)) : null
+    });
+  });
+}
+
+// actionPlanText(result, fixes, businessName) — plain-text action plan for
+// copy/paste into a task manager or email. Pure.
+function actionPlanText(result, fixes, businessName) {
+  var lines = [];
+  lines.push((businessName ? businessName + " — " : "") +
+    "Local SEO action plan · Score " + result.score + "/100 (" + result.band + ")");
+  lines.push("");
+  (fixes || []).forEach(function (f, i) {
+    lines.push((i + 1) + ". [" + f.impact + " impact] " + f.label + " (" + f.sectionTitle + ")");
+  });
+  if (!(fixes || []).length) lines.push("All items complete — nothing left to fix.");
+  return lines.join("\n");
+}
 
 const HISTORY_KEY = "seocheck.v1.history";
 
@@ -104,6 +153,10 @@ if (typeof module !== "undefined" && module.exports) {
     computeScore,
     prioritizedFixes,
     sectionProgress,
+    filterFixes,
+    searchItems,
+    historyWithDeltas,
+    actionPlanText,
     saveAudit,
     loadAudits,
     bandFor,

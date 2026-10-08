@@ -53,6 +53,11 @@
       </div>
     </section>
 
+    <div class="audit-tools">
+      <input type="search" id="itemSearch" placeholder="Search the 28 audit items…" aria-label="Search audit items">
+      <span id="searchNote" class="search-note" hidden></span>
+    </div>
+
     <div id="sections"></div>
 
     <section class="card queue-card">
@@ -63,11 +68,22 @@
         </div>
         <span class="count"><span id="fixCount">0</span> items to fix</span>
       </div>
+      <div class="fix-filters">
+        <select id="fixImpactFilter" aria-label="Filter fixes by impact">
+          <option value="">All impacts</option>
+          <option value="high">High impact</option>
+          <option value="medium">Medium impact</option>
+          <option value="low">Low impact</option>
+        </select>
+        <select id="fixSectionFilter" aria-label="Filter fixes by section"></select>
+      </div>
       <ol id="fixList"></ol>
     </section>
 
     <div class="actions">
       <button id="completeBtn" class="btn btn-primary">Complete audit &amp; save to history</button>
+      <button id="copyPlanBtn" class="btn btn-ghost">Copy action plan</button>
+      <button id="printBtn" class="btn btn-ghost">Print report</button>
       <button id="summaryBtn" class="btn btn-ghost">Generate summary</button>
       <button id="settingsBtn" class="btn btn-ghost">Settings</button>
       <button id="resetBtn" class="btn btn-ghost">Reset checklist</button>

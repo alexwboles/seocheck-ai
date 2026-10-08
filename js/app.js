@@ -31,8 +31,18 @@
   var els = {};
   ["businessName", "scoreFill", "scoreText", "scoreBand", "sections",
    "fixList", "fixCount", "historyList", "summaryBox", "settingsPanel",
-   "openaiKey", "year"
+   "openaiKey", "year", "itemSearch", "searchNote", "fixImpactFilter",
+   "fixSectionFilter"
   ].forEach(function (id) { els[id] = document.getElementById(id); });
+
+  // search box for the 28 audit items (toolbar is static HTML, outside re-renders)
+  var searchQuery = "";
+
+  // populate the fix-list section filter once
+  els.fixSectionFilter.innerHTML = '<option value="">All sections</option>' +
+    AUDIT_SECTIONS.map(function (s) {
+      return '<option value="' + s.id + '">' + escapeHtml(s.title) + "</option>";
+    }).join("");
 
   function refresh() {
     var ids = getCheckedIds();
@@ -54,10 +64,28 @@
       ring.style.strokeDashoffset = (CIRC * (1 - result.score / result.maxScore)).toFixed(1);
     }
 
-    // Sections + mini progress bars
+    // Sections + mini progress bars (filtered live by the search box)
     els.sections.innerHTML = "";
+    var matchIds = null, matchCount = 0;
+    if (searchQuery) {
+      matchIds = {};
+      searchItems(AUDIT_SECTIONS, searchQuery).forEach(function (m) {
+        matchIds[m.item.id] = true;
+        matchCount++;
+      });
+      els.searchNote.textContent = matchCount === 0
+        ? "No items match \"" + searchQuery + "\""
+        : matchCount + " of 28 items match";
+      els.searchNote.hidden = false;
+    } else {
+      els.searchNote.hidden = true;
+    }
     AUDIT_SECTIONS.forEach(function (section, si) {
       var p = progress.filter(function (x) { return x.sectionId === section.id; })[0];
+      var shownItems = matchIds
+        ? section.items.filter(function (it) { return matchIds[it.id]; })
+        : section.items;
+      if (matchIds && shownItems.length === 0) return; // hide empty sections while searching
       var card = document.createElement("section");
       card.className = "card audit-section";
 
@@ -72,7 +100,7 @@
 
       var list = document.createElement("ul");
       list.className = "checklist";
-      section.items.forEach(function (item) {
+      shownItems.forEach(function (item) {
         var li = document.createElement("li");
         li.className = "check-item" + (checkedSet[item.id] ? " done" : "");
 
@@ -104,13 +132,19 @@
       els.sections.appendChild(card);
     });
 
-    // Fix list
-    els.fixCount.textContent = fixes.length;
+    // Fix list (impact + section filters)
+    var visibleFixes = filterFixes(fixes, {
+      impact: els.fixImpactFilter.value,
+      sectionId: els.fixSectionFilter.value
+    });
+    els.fixCount.textContent = visibleFixes.length;
     els.fixList.innerHTML = "";
     if (fixes.length === 0) {
       els.fixList.innerHTML = '<li class="all-done">Nothing left to fix — your local SEO is in great shape.</li>';
+    } else if (visibleFixes.length === 0) {
+      els.fixList.innerHTML = '<li class="all-done">No fixes match the selected filters.</li>';
     } else {
-      fixes.forEach(function (f, idx) {
+      visibleFixes.forEach(function (f, idx) {
         var li = document.createElement("li");
         li.className = "fix-item";
         li.innerHTML =
@@ -126,19 +160,25 @@
   }
 
   function renderHistory() {
-    var history = loadAudits(localStorage);
+    var history = historyWithDeltas(loadAudits(localStorage));
     els.historyList.innerHTML = "";
     if (history.length === 0) {
       els.historyList.innerHTML = '<li class="empty">No completed audits yet. Check every item, then hit "Complete audit".</li>';
       return;
     }
     history.slice().reverse().forEach(function (h) {
+      var delta = "";
+      if (h.delta !== null && h.delta !== undefined) {
+        var cls = h.delta > 0 ? "delta-up" : (h.delta < 0 ? "delta-down" : "delta-same");
+        var sign = h.delta > 0 ? "+" : "";
+        delta = ' <span class="delta ' + cls + '">' + sign + h.delta + " pts</span>";
+      }
       var li = document.createElement("li");
       li.className = "history-item";
       li.innerHTML =
         "<span class='h-date'>" + escapeHtml(String(h.date || "")) + "</span>" +
         "<span class='h-name'>" + escapeHtml(String(h.businessName || "Unnamed business")) + "</span>" +
-        "<span class='h-score'>" + Number(h.score) + " — " + escapeHtml(String(h.band || "")) + "</span>";
+        "<span class='h-score'>" + Number(h.score) + " — " + escapeHtml(String(h.band || "")) + delta + "</span>";
       els.historyList.appendChild(li);
     });
   }
@@ -255,6 +295,51 @@
   });
 
   document.getElementById("summaryBtn").addEventListener("click", generateSummary);
+
+  // audit item search
+  els.itemSearch.addEventListener("input", function () {
+    searchQuery = els.itemSearch.value;
+    refresh();
+  });
+
+  // fix queue filters
+  els.fixImpactFilter.addEventListener("change", refresh);
+  els.fixSectionFilter.addEventListener("change", refresh);
+
+  // copy action plan to clipboard
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  document.getElementById("copyPlanBtn").addEventListener("click", function () {
+    var btn = this;
+    var ids = getCheckedIds();
+    var result = computeScore(ids, AUDIT_SECTIONS);
+    var planFixes = prioritizedFixes(ids, AUDIT_SECTIONS);
+    var text = actionPlanText(result, planFixes, state.businessName);
+    function done() {
+      var old = btn.textContent;
+      btn.textContent = "Copied ✓";
+      setTimeout(function () { btn.textContent = old; }, 1600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text);
+      done();
+    }
+  });
+
+  // print a clean audit report
+  document.getElementById("printBtn").addEventListener("click", function () {
+    window.print();
+  });
 
   document.getElementById("settingsBtn").addEventListener("click", function () {
     els.settingsPanel.hidden = !els.settingsPanel.hidden;
