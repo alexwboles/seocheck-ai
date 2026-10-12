@@ -134,10 +134,85 @@ const txt=L.actionPlanText(r,fixes,'Sunny Side Plumbing');
 const lines=txt.split('\n');
 if(lines[0].indexOf('Sunny Side Plumbing')!==0) throw new Error('missing business name');
 if(lines[0].indexOf('0/100')<0) throw new Error('missing score');
-if(lines.length!==fixes.length+2) throw new Error('want header+blank+fixes, got '+lines.length);
-if(!lines[2].match(/^\d+\. \[high impact\]/)) throw new Error('bad fix line: '+lines[2]);
+if(lines[1].indexOf('Estimated effort:')!==0) throw new Error('missing effort line: '+lines[1]);
+if(lines.length!==fixes.length+3) throw new Error('want header+effort+blank+fixes, got '+lines.length);
+if(!lines[3].match(/^\d+\. \[high impact/)) throw new Error('bad fix line: '+lines[3]);
+if(lines[3].indexOf('Half day')<0) throw new Error('fix line missing effort label: '+lines[3]);
 const done=L.actionPlanText({score:100,band:'Excellent'},[],'');
 if(done.indexOf('nothing left to fix')<0) throw new Error('empty-plan message missing');
+if(done.split('\n').length!==3) throw new Error('empty plan should skip effort line');
+"
+
+# 20: effort estimates
+check "effortFor + planEffort math" node -e "
+const L=require('./js/logic.js');
+if(L.effortFor('high').minutes!==240||L.effortFor('high').label!=='Half day') throw new Error('high');
+if(L.effortFor('medium').minutes!==60) throw new Error('medium');
+if(L.effortFor('low').minutes!==15||L.effortFor('low').label!=='Quick win') throw new Error('low');
+if(L.effortFor('bogus').minutes!==60) throw new Error('fallback');
+if(L.fmtDuration(45)!=='45 min') throw new Error('mins');
+if(L.fmtDuration(60)!=='1h') throw new Error('hour');
+if(L.fmtDuration(75)!=='1h 15m') throw new Error('hour+min');
+const p=L.planEffort([{impact:'high'},{impact:'medium'},{impact:'low'},{impact:'low'}]);
+if(p.totalMinutes!==330) throw new Error('total: '+p.totalMinutes);
+if(p.quickWins!==2) throw new Error('quick wins: '+p.quickWins);
+if(p.label!=='5h 30m') throw new Error('label: '+p.label);
+const e=L.planEffort([]);
+if(e.totalMinutes!==0||e.label!=='0 min') throw new Error('empty plan effort');
+"
+
+# 21: fix notes (work log)
+check "fix notes add/list round-trip" node -e "
+const L=require('./js/logic.js');
+const mem={}; const store={getItem:k=>mem[k]||null,setItem:(k,v)=>{mem[k]=v}};
+if(JSON.stringify(L.loadFixNotes(store))!=='{}') throw new Error('empty notes');
+const bad=L.addFixNote({},'gbp-verified','   ');
+if(bad.ok) throw new Error('blank note accepted');
+let r=L.addFixNote({},'gbp-verified','Claimed the profile via postcard');
+if(!r.ok) throw new Error('add failed');
+L.saveFixNotes(store,r.notes);
+const back=L.loadFixNotes(store);
+const list=L.fixNotesFor(back,'gbp-verified');
+if(list.length!==1||list[0].text!=='Claimed the profile via postcard'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(list[0].date)) throw new Error('note shape: '+JSON.stringify(list));
+if(L.fixNotesFor(back,'other-id').length!==0) throw new Error('other item should be empty');
+let many={}; for(let i=0;i<25;i++){ const x=L.addFixNote(many,'x','n'+i); many=x.notes; }
+if(L.fixNotesFor(many,'x').length!==20) throw new Error('notes should cap at 20');
+const corrupt={getItem:()=>'{nope',setItem:()=>{}};
+if(JSON.stringify(L.loadFixNotes(corrupt))!=='{}') throw new Error('corrupt notes should be {}');
+"
+
+# 22: re-audit diff
+check "diffAudits finds fixed + regressed items" node -e "
+const {AUDIT_SECTIONS}=require('./js/auditbank.js');
+const L=require('./js/logic.js');
+const d=L.diffAudits(['gbp-verified','gbp-name','web-ssl'],['gbp-verified','gbp-categories'],AUDIT_SECTIONS);
+if(d.completed.length!==1||d.completed[0]!=='Primary and secondary categories are set') throw new Error('completed: '+JSON.stringify(d.completed));
+if(d.regressed.length!==2) throw new Error('regressed: '+JSON.stringify(d.regressed));
+const none=L.diffAudits(['gbp-verified'],['gbp-verified'],AUDIT_SECTIONS);
+if(none.completed.length||none.regressed.length) throw new Error('no changes expected');
+const unk=L.diffAudits(['nope'],['alsono'],AUDIT_SECTIONS);
+if(unk.completed.length||unk.regressed.length) throw new Error('unknown ids should be ignored');
+"
+
+# 23: saveAudit stores checkedIds for diffing
+check "saveAudit persists checkedIds" node -e "
+const L=require('./js/logic.js');
+const mem={}; const store={getItem:k=>mem[k]||null,setItem:(k,v)=>{mem[k]=v}};
+L.saveAudit(store,{date:'2026-10-01',businessName:'A',score:50,band:'Getting there',checkedIds:['a','b']});
+const h=L.loadAudits(store);
+if(h.length!==1||h[0].checkedIds.length!==2) throw new Error('checkedIds missing: '+JSON.stringify(h));
+const annotated=L.historyWithDeltas(h);
+if(annotated[0].checkedIds.length!==2) throw new Error('deltas should keep checkedIds');
+"
+
+# 24: new UI wiring
+check "new UI wiring present" bash -c "
+  grep -q 'id=\"effortLine\"' index.html &&
+  grep -q 'effortFor' js/app.js && grep -q 'fixNotesFor' js/app.js &&
+  grep -q 'addFixNote' js/app.js && grep -q 'diffAudits' js/app.js &&
+  grep -q 'fix-notes-toggle' js/app.js && grep -q 'data-note-add' js/app.js &&
+  grep -q 'effort-low' css/style.css && grep -q 'fix-notes' css/style.css &&
+  grep -q 'h-diff' css/style.css
 "
 
 echo "--- smoke: $pass passed, $fail failed ---"

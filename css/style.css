@@ -288,3 +288,19 @@ button:focus-visible, input:focus-visible, a:focus-visible {
   .h-score { margin-left: 0; width: 100%; }
   .actions .btn { flex: 1 1 100%; }
 }
+
+/* ---------- effort estimates + work notes (sharp edges) ---------- */
+.effort { display: inline-block; font-size: .72rem; font-weight: 700; padding: .08rem .45rem; }
+.effort-high { background: var(--red-soft); color: var(--red); }
+.effort-medium { background: var(--amber-soft); color: var(--amber); }
+.effort-low { background: var(--green-soft); color: var(--green); }
+.effort-line { display: block; font-size: .82rem; color: var(--slate); margin-top: .2rem; }
+.fix-notes { margin-top: .6rem; border-top: 1px dashed var(--line); padding-top: .6rem; }
+.note-list { list-style: none; margin: 0 0 .5rem; padding: 0; }
+.note-list li { font-size: .85rem; padding: .3rem 0; border-bottom: 1px dotted var(--line); }
+.note-date { font-weight: 700; color: var(--slate); margin-right: .4rem; font-variant-numeric: tabular-nums; }
+.fix-note-add { display: flex; gap: .5rem; }
+.fix-note-add input { flex: 1; font: inherit; padding: .45rem .6rem; border: 1px solid var(--line); }
+.fix-notes-toggle { margin-top: .4rem; }
+.h-diff { display: inline-block; font-size: .72rem; font-weight: 700; color: var(--deck);
+  background: var(--slate-soft); padding: .08rem .45rem; margin-left: .35rem; }

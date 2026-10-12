@@ -105,15 +105,103 @@ function historyWithDeltas(history) {
   });
 }
 
+// ---- Effort estimates -------------------------------------------------------
+// Time budget per fix, derived from impact so the plan is honest about the work.
+const EFFORT = {
+  high: { label: "Half day", minutes: 240 },
+  medium: { label: "~1 hour", minutes: 60 },
+  low: { label: "Quick win", minutes: 15 }
+};
+
+function effortFor(impact) {
+  return EFFORT[impact] || EFFORT.medium;
+}
+
+function fmtDuration(min) {
+  min = Math.max(0, Math.round(min));
+  if (min < 60) return min + " min";
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? h + "h " + m + "m" : h + "h";
+}
+
+// planEffort(fixes) -> { totalMinutes, quickWins, label }.
+function planEffort(fixes) {
+  let total = 0, quickWins = 0;
+  (fixes || []).forEach(function (f) {
+    total += effortFor(f.impact).minutes;
+    if (f.impact === "low") quickWins++;
+  });
+  return { totalMinutes: total, quickWins: quickWins, label: fmtDuration(total) };
+}
+
+// ---- Fix notes (work log) -----------------------------------------------------
+const FIXNOTES_KEY = "seocheck.v1.fixnotes";
+
+// loadFixNotes(storage) -> { itemId: [{ date, text }] }. {} on bad data.
+function loadFixNotes(storage) {
+  try {
+    const raw = storage.getItem(FIXNOTES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveFixNotes(storage, notes) {
+  try { storage.setItem(FIXNOTES_KEY, JSON.stringify(notes || {})); } catch (e) {}
+}
+
+// addFixNote(notes, itemId, text) -> { ok, notes } or { ok: false, error }.
+function addFixNote(notes, itemId, text) {
+  text = String(text == null ? "" : text).trim().slice(0, 500);
+  if (!text) return { ok: false, error: "Note text is required." };
+  if (!itemId) return { ok: false, error: "Item id is required." };
+  const n = Object.assign({}, notes || {});
+  const list = ((n[itemId] || []).slice());
+  list.push({ date: new Date().toISOString().slice(0, 10), text: text });
+  n[itemId] = list.slice(-20);
+  return { ok: true, notes: n };
+}
+
+function fixNotesFor(notes, itemId) {
+  return (((notes || {})[itemId]) || []).slice();
+}
+
+// ---- Re-audit diff --------------------------------------------------------------
+// diffAudits(prevCheckedIds, currCheckedIds, sections)
+//   -> { completed: [labels], regressed: [labels] } vs the previous audit.
+function diffAudits(prevIds, currIds, sections) {
+  const prev = {}, curr = {};
+  (prevIds || []).forEach(function (id) { prev[id] = true; });
+  (currIds || []).forEach(function (id) { curr[id] = true; });
+  const labelOf = {};
+  allItems(sections).forEach(function (i) { labelOf[i.id] = i.label; });
+  const completed = [], regressed = [];
+  Object.keys(curr).forEach(function (id) {
+    if (!prev[id] && labelOf[id]) completed.push(labelOf[id]);
+  });
+  Object.keys(prev).forEach(function (id) {
+    if (!curr[id] && labelOf[id]) regressed.push(labelOf[id]);
+  });
+  return { completed: completed, regressed: regressed };
+}
+
 // actionPlanText(result, fixes, businessName) — plain-text action plan for
 // copy/paste into a task manager or email. Pure.
 function actionPlanText(result, fixes, businessName) {
   var lines = [];
   lines.push((businessName ? businessName + " — " : "") +
     "Local SEO action plan · Score " + result.score + "/100 (" + result.band + ")");
+  var eff = planEffort(fixes);
+  if ((fixes || []).length) {
+    lines.push("Estimated effort: " + eff.label + " total · " + eff.quickWins + " quick win(s).");
+  }
   lines.push("");
   (fixes || []).forEach(function (f, i) {
-    lines.push((i + 1) + ". [" + f.impact + " impact] " + f.label + " (" + f.sectionTitle + ")");
+    lines.push((i + 1) + ". [" + f.impact + " impact · " + effortFor(f.impact).label + "] " +
+      f.label + " (" + f.sectionTitle + ")");
   });
   if (!(fixes || []).length) lines.push("All items complete — nothing left to fix.");
   return lines.join("\n");
@@ -121,15 +209,16 @@ function actionPlanText(result, fixes, businessName) {
 
 const HISTORY_KEY = "seocheck.v1.history";
 
-// saveAudit(storage, audit) — appends { date, businessName, score, band } and
-// returns the full history array. Keeps the last 50 entries.
+// saveAudit(storage, audit) — appends { date, businessName, score, band, checkedIds }
+// and returns the full history array. Keeps the last 50 entries.
 function saveAudit(storage, audit) {
   const history = loadAudits(storage);
   history.push({
     date: audit.date,
     businessName: audit.businessName || "",
     score: audit.score,
-    band: audit.band
+    band: audit.band,
+    checkedIds: Array.isArray(audit.checkedIds) ? audit.checkedIds.slice() : []
   });
   const trimmed = history.slice(-50);
   storage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
@@ -160,6 +249,15 @@ if (typeof module !== "undefined" && module.exports) {
     saveAudit,
     loadAudits,
     bandFor,
+    effortFor,
+    planEffort,
+    fmtDuration,
+    FIXNOTES_KEY,
+    loadFixNotes,
+    saveFixNotes,
+    addFixNote,
+    fixNotesFor,
+    diffAudits,
     IMPACT_RANK
   };
 }

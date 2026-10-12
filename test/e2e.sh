@@ -107,17 +107,20 @@ if(h[0].delta!==null) throw new Error('first delta must be null');
 if(h[1].delta!==(r2.score-r1.score)||h[1].delta<=0) throw new Error('want positive delta, got '+h[1].delta);
 "
 
-# 11: copy action plan — full queue renders as numbered text with impacts
+# 11: copy action plan — full queue renders as numbered text with impacts + effort
 check "action plan text is complete and ordered" node -e "
 $PRELUDE
 const fixes=L.prioritizedFixes([],AUDIT_SECTIONS);
 const r=L.computeScore([],AUDIT_SECTIONS);
 const txt=L.actionPlanText(r,fixes,'Acme Plumbing');
 const lines=txt.split('\n');
-if(lines.length!==30) throw new Error('want 28 fixes + header + blank, got '+lines.length);
-if(!lines[2].startsWith('1. [high impact]')) throw new Error('first fix not high impact: '+lines[2]);
+if(lines.length!==31) throw new Error('want 28 fixes + header + effort + blank, got '+lines.length);
+if(lines[1].indexOf('Estimated effort:')!==0) throw new Error('effort line missing: '+lines[1]);
+if(!lines[3].startsWith('1. [high impact')) throw new Error('first fix not high impact: '+lines[3]);
+if(lines[3].indexOf('Half day')<0) throw new Error('first fix missing effort label: '+lines[3]);
 const last=lines[lines.length-1];
-if(!last.startsWith('28. [low impact]')) throw new Error('last fix not low impact: '+last);
+if(!last.startsWith('28. [low impact')) throw new Error('last fix not low impact: '+last);
+if(last.indexOf('Quick win')<0) throw new Error('last fix missing effort label: '+last);
 "
 
 # 12: search + filter + plan compose (search 'ssl', no fixes affected)
@@ -134,6 +137,41 @@ const r=L.computeScore(['nope','alsono'],AUDIT_SECTIONS);
 if(r.score!==0) throw new Error(JSON.stringify(r));
 const f=L.prioritizedFixes(['nope'],AUDIT_SECTIONS);
 if(f.length!==28) throw new Error('got '+f.length);
+"
+
+# effort + notes + re-audit diff, end to end
+check "effort, work notes, and re-audit diff flow" node -e "
+$PRELUDE
+// First audit: only 3 quick wins done -> plan is honest about the remaining work
+const done1=items.filter(i=>i.impact==='low').slice(0,3).map(i=>i.id);
+const fixes1=L.prioritizedFixes(done1,AUDIT_SECTIONS);
+const eff1=L.planEffort(fixes1);
+if(fixes1.length!==25) throw new Error('fixes: '+fixes1.length);
+if(eff1.quickWins!==3) throw new Error('quick wins left: '+eff1.quickWins);
+// every fix line carries its effort chip
+const plan1=L.actionPlanText(L.computeScore(done1,AUDIT_SECTIONS),fixes1,'Acme');
+if(!/Estimated effort:/.test(plan1)) throw new Error('plan missing effort');
+if(!/Quick win/.test(plan1)) throw new Error('plan missing quick-win label');
+// Work log: owner logs what they did on two fixes
+let notes={};
+notes=L.addFixNote(notes,fixes1[0].id,'Called Google support, verification postcard on the way').notes;
+notes=L.addFixNote(notes,fixes1[0].id,'Postcard arrived, profile verified').notes;
+notes=L.addFixNote(notes,fixes1[1].id,'Uploaded 12 new photos').notes;
+if(L.fixNotesFor(notes,fixes1[0].id).length!==2) throw new Error('note count');
+// Second audit: the two logged fixes are now checked -> diff shows them fixed
+const done2=done1.concat([fixes1[0].id,fixes1[1].id]);
+const mem={}; const store={getItem:k=>mem[k]||null,setItem:(k,v)=>{mem[k]=v}};
+const r1=L.computeScore(done1,AUDIT_SECTIONS), r2=L.computeScore(done2,AUDIT_SECTIONS);
+L.saveAudit(store,{date:'2026-10-01',businessName:'Acme',score:r1.score,band:r1.band,checkedIds:done1});
+L.saveAudit(store,{date:'2026-10-12',businessName:'Acme',score:r2.score,band:r2.band,checkedIds:done2});
+const hist=L.historyWithDeltas(L.loadAudits(store));
+if(hist.length!==2||hist[1].delta!==r2.score-r1.score) throw new Error('history delta');
+const d=L.diffAudits(hist[0].checkedIds,hist[1].checkedIds,AUDIT_SECTIONS);
+if(d.completed.length!==2) throw new Error('completed: '+JSON.stringify(d.completed));
+if(d.regressed.length!==0) throw new Error('regressed: '+JSON.stringify(d.regressed));
+// Effort shrinks as fixes land
+const eff2=L.planEffort(L.prioritizedFixes(done2,AUDIT_SECTIONS));
+if(!(eff2.totalMinutes<eff1.totalMinutes)) throw new Error('effort should shrink');
 "
 
 echo "--- e2e: $pass passed, $fail failed ---"

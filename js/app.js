@@ -24,13 +24,16 @@
   var checkedSet = {};
   state.checked.forEach(function (id) { checkedSet[id] = true; });
 
+  // per-item work log: { itemId: [{ date, text }] }
+  var fixNotes = loadFixNotes(localStorage);
+
   function getCheckedIds() {
     return Object.keys(checkedSet).filter(function (id) { return checkedSet[id]; });
   }
 
   var els = {};
   ["businessName", "scoreFill", "scoreText", "scoreBand", "sections",
-   "fixList", "fixCount", "historyList", "summaryBox", "settingsPanel",
+   "fixList", "fixCount", "effortLine", "historyList", "summaryBox", "settingsPanel",
    "openaiKey", "year", "itemSearch", "searchNote", "fixImpactFilter",
    "fixSectionFilter"
   ].forEach(function (id) { els[id] = document.getElementById(id); });
@@ -138,6 +141,10 @@
       sectionId: els.fixSectionFilter.value
     });
     els.fixCount.textContent = visibleFixes.length;
+    var eff = planEffort(visibleFixes);
+    els.effortLine.textContent = visibleFixes.length
+      ? "≈ " + eff.label + " of work · " + eff.quickWins + " quick win" + (eff.quickWins === 1 ? "" : "s")
+      : "";
     els.fixList.innerHTML = "";
     if (fixes.length === 0) {
       els.fixList.innerHTML = '<li class="all-done">Nothing left to fix — your local SEO is in great shape.</li>';
@@ -147,12 +154,44 @@
       visibleFixes.forEach(function (f, idx) {
         var li = document.createElement("li");
         li.className = "fix-item";
+        var e = effortFor(f.impact);
+        var notes = fixNotesFor(fixNotes, f.id);
         li.innerHTML =
           '<span class="fix-rank">' + (idx + 1) + "</span>" +
           '<div class="fix-body"><strong>' + escapeHtml(f.label) + "</strong>" +
-          '<span class="fix-meta">' + escapeHtml(f.sectionTitle) + ' · <span class="impact impact-' + f.impact + '">' + f.impact + " impact</span></span>" +
-          '<p class="tip">' + escapeHtml(f.tip) + "</p></div>";
+          '<span class="fix-meta">' + escapeHtml(f.sectionTitle) + ' · <span class="impact impact-' + f.impact + '">' + f.impact + " impact</span>" +
+          ' · <span class="effort effort-' + f.impact + '">' + escapeHtml(e.label) + "</span></span>" +
+          '<p class="tip">' + escapeHtml(f.tip) + "</p>" +
+          '<button type="button" class="btn btn-small btn-ghost fix-notes-toggle" data-notes="' + f.id + '">Work notes' +
+          (notes.length ? " (" + notes.length + ")" : "") + "</button>" +
+          '<div class="fix-notes" id="notes-' + f.id + '" hidden>' +
+          (notes.length
+            ? '<ul class="note-list">' + notes.map(function (n) {
+              return '<li><span class="note-date">' + escapeHtml(n.date) + "</span> " + escapeHtml(n.text) + "</li>";
+            }).join("") + "</ul>"
+            : '<p class="tip">No notes yet — log what you did as you work through this fix.</p>') +
+          '<div class="fix-note-add"><input type="text" placeholder="Log what you did…" maxlength="500" data-note-input="' + f.id + '" aria-label="Add a work note">' +
+          '<button type="button" class="btn btn-small" data-note-add="' + f.id + '">Add note</button></div>' +
+          "</div></div>";
         els.fixList.appendChild(li);
+      });
+      // work-note interactions
+      els.fixList.querySelectorAll(".fix-notes-toggle").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var panel = document.getElementById("notes-" + btn.getAttribute("data-notes"));
+          if (panel) panel.hidden = !panel.hidden;
+        });
+      });
+      els.fixList.querySelectorAll("[data-note-add]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = btn.getAttribute("data-note-add");
+          var input = els.fixList.querySelector('[data-note-input="' + id + '"]');
+          var res = addFixNote(fixNotes, id, input ? input.value : "");
+          if (!res.ok) { if (input) input.focus(); return; }
+          fixNotes = res.notes;
+          saveFixNotes(localStorage, fixNotes);
+          refresh();
+        });
       });
     }
 
@@ -166,19 +205,29 @@
       els.historyList.innerHTML = '<li class="empty">No completed audits yet. Check every item, then hit "Complete audit".</li>';
       return;
     }
-    history.slice().reverse().forEach(function (h) {
+    history.slice().reverse().forEach(function (h, i, rev) {
       var delta = "";
       if (h.delta !== null && h.delta !== undefined) {
         var cls = h.delta > 0 ? "delta-up" : (h.delta < 0 ? "delta-down" : "delta-same");
         var sign = h.delta > 0 ? "+" : "";
         delta = ' <span class="delta ' + cls + '">' + sign + h.delta + " pts</span>";
       }
+      // what changed since the previous audit: fixed vs slipped items
+      var prevAudit = rev[i + 1];
+      var diffTxt = "";
+      if (prevAudit && Array.isArray(h.checkedIds)) {
+        var d = diffAudits(prevAudit.checkedIds || [], h.checkedIds, AUDIT_SECTIONS);
+        if (d.completed.length || d.regressed.length) {
+          diffTxt = ' <span class="h-diff">+' + d.completed.length + " fixed" +
+            (d.regressed.length ? ", −" + d.regressed.length + " slipped" : "") + "</span>";
+        }
+      }
       var li = document.createElement("li");
       li.className = "history-item";
       li.innerHTML =
         "<span class='h-date'>" + escapeHtml(String(h.date || "")) + "</span>" +
         "<span class='h-name'>" + escapeHtml(String(h.businessName || "Unnamed business")) + "</span>" +
-        "<span class='h-score'>" + Number(h.score) + " — " + escapeHtml(String(h.band || "")) + delta + "</span>";
+        "<span class='h-score'>" + Number(h.score) + " — " + escapeHtml(String(h.band || "")) + delta + diffTxt + "</span>";
       els.historyList.appendChild(li);
     });
   }
@@ -277,7 +326,8 @@
       date: today,
       businessName: state.businessName,
       score: result.score,
-      band: result.band
+      band: result.band,
+      checkedIds: ids
     });
     state.auditDate = today;
     persist(state);
