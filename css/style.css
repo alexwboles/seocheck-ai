@@ -304,3 +304,23 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 .fix-notes-toggle { margin-top: .4rem; }
 .h-diff { display: inline-block; font-size: .72rem; font-weight: 700; color: var(--deck);
   background: var(--slate-soft); padding: .08rem .45rem; margin-left: .35rem; }
+
+/* ---------- sweep-2: N/A, what-if, reminders (sharp edges) ---------- */
+.na-toggle { margin-left: .6rem; }
+.na-pill {
+  display: inline-block; font-size: .68rem; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: #6b7280; border: 2px solid #9ca3af;
+  padding: .1rem .5rem; margin-left: .6rem; border-radius: 0;
+}
+.check-item.is-na { opacity: .55; }
+.check-item.is-na input[type="checkbox"] { pointer-events: none; }
+.whatif {
+  font-weight: 700; font-size: .95rem; color: #0f766e;
+  border-left: 4px solid #0f766e; padding: .4rem .8rem; margin: .8rem 0;
+}
+.whatif:empty { display: none; }
+.reminder-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; font-size: .9rem; }
+.reminder-banner { font-size: .9rem; margin: 0 0 .8rem; }
+.reminder-banner.over { font-weight: 700; color: #b91c1c; }
+.reminder-banner.soon { font-weight: 700; color: #b45309; }
+.reminder-banner:empty { display: none; }

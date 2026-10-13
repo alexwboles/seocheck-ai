@@ -27,10 +27,29 @@ function bandFor(score) {
   return "Needs work";
 }
 
-// computeScore(checkedIds, sections) -> { score, maxScore, band }
-// checkedIds: array of item ids marked done. Unknown ids are ignored.
-function computeScore(checkedIds, sections) {
-  const items = allItems(sections);
+// ---- Not-applicable items -----------------------------------------------------
+// toggleNA(naIds, id) -> new array of N/A item ids.
+function toggleNA(naIds, id) {
+  const list = (naIds || []).slice();
+  const i = list.indexOf(id);
+  if (i >= 0) list.splice(i, 1);
+  else list.push(id);
+  return list;
+}
+
+// applicableItems(sections, naIds) -> items not marked N/A.
+function applicableItems(sections, naIds) {
+  const na = new Set(naIds || []);
+  return allItems(sections).filter((i) => !na.has(i.id));
+}
+
+// computeScore(checkedIds, sections, naIds?) -> { score, maxScore, band, naCount }
+// checkedIds: array of item ids marked done. N/A items are excluded from the
+// max score, so marking something N/A never punishes the audit. Unknown and
+// N/A ids in checkedIds are ignored.
+function computeScore(checkedIds, sections, naIds) {
+  const na = new Set(naIds || []);
+  const items = allItems(sections).filter((i) => !na.has(i.id));
   const maxScore = items.reduce((sum, i) => sum + i.weight, 0);
   const checked = new Set(checkedIds);
   const score = items.reduce(
@@ -39,15 +58,17 @@ function computeScore(checkedIds, sections) {
   );
   // Guard against floating point drift; weights are integers so this is exact.
   const rounded = Math.min(maxScore, Math.max(0, Math.round(score)));
-  return { score: rounded, maxScore, band: bandFor(rounded) };
+  return { score: rounded, maxScore, band: bandFor(rounded), naCount: (naIds || []).length };
 }
 
-// prioritizedFixes(checkedIds, sections) -> unchecked items sorted by
+// prioritizedFixes(checkedIds, sections, naIds?) -> unchecked items sorted by
 // impact (high -> medium -> low), then weight descending, then label.
-function prioritizedFixes(checkedIds, sections) {
+// N/A items are excluded: no point fixing what doesn't apply.
+function prioritizedFixes(checkedIds, sections, naIds) {
   const checked = new Set(checkedIds);
+  const na = new Set(naIds || []);
   return allItems(sections)
-    .filter((i) => !checked.has(i.id))
+    .filter((i) => !checked.has(i.id) && !na.has(i.id))
     .sort((a, b) => {
       const ir = IMPACT_RANK[a.impact] - IMPACT_RANK[b.impact];
       if (ir !== 0) return ir;
@@ -56,15 +77,61 @@ function prioritizedFixes(checkedIds, sections) {
     });
 }
 
-// sectionProgress(checkedIds, sections) -> [{ sectionId, title, checked, total, pct }]
-function sectionProgress(checkedIds, sections) {
+// sectionProgress(checkedIds, sections, naIds?) -> [{ sectionId, title, checked, total, pct }]
+// N/A items are excluded from section totals as well.
+function sectionProgress(checkedIds, sections, naIds) {
   const checked = new Set(checkedIds);
+  const na = new Set(naIds || []);
   return sections.map((s) => {
-    const total = s.items.length;
-    const done = s.items.filter((i) => checked.has(i.id)).length;
-    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const items = s.items.filter((i) => !na.has(i.id));
+    const total = items.length;
+    const done = items.filter((i) => checked.has(i.id)).length;
+    const pct = total === 0 ? 100 : Math.round((done / total) * 100);
     return { sectionId: s.id, title: s.title, checked: done, total, pct };
   });
+}
+
+// projectedScore(checkedIds, sections, fixIds, naIds?) -> { score, maxScore, band, gain }
+// What the score would be if fixIds were completed — the "what-if" behind the
+// "finish the top 3" banner. Pure.
+function projectedScore(checkedIds, sections, fixIds, naIds) {
+  const now = computeScore(checkedIds, sections, naIds);
+  const merged = Array.from(new Set((checkedIds || []).concat(fixIds || [])));
+  const after = computeScore(merged, sections, naIds);
+  return { score: after.score, maxScore: after.maxScore, band: after.band, gain: after.score - now.score };
+}
+
+// ---- Re-audit reminders --------------------------------------------------------
+// nextAuditDue(lastAuditDate, daysAhead) -> "YYYY-MM-DD" or "".
+// reminderStatus(lastAuditDate, daysAhead, todayStr?)
+//   -> "overdue" | "due-soon" (<=7 days out) | "ok" | "off".
+const REMINDER_KEY = "seocheck.v1.reminderDays";
+
+function addDays(dateStr, n) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
+  if (!m) return "";
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  d.setDate(d.getDate() + n);
+  const p2 = (x) => String(x).padStart(2, "0");
+  return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
+}
+
+function nextAuditDue(lastAuditDate, daysAhead) {
+  const n = parseInt(daysAhead, 10);
+  if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(String(lastAuditDate || ""))) return "";
+  if (isNaN(n) || n < 7) return "";
+  return addDays(lastAuditDate, n);
+}
+
+function reminderStatus(lastAuditDate, daysAhead, todayStr) {
+  const due = nextAuditDue(lastAuditDate, daysAhead);
+  if (!due) return "off";
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(String(todayStr || ""))
+    ? todayStr
+    : new Date().toISOString().slice(0, 10);
+  if (due < today) return "overdue";
+  if (due <= addDays(today, 7)) return "due-soon";
+  return "ok";
 }
 
 // filterFixes(fixes, { impact, sectionId }) — narrow the prioritized
@@ -258,6 +325,12 @@ if (typeof module !== "undefined" && module.exports) {
     addFixNote,
     fixNotesFor,
     diffAudits,
-    IMPACT_RANK
+    IMPACT_RANK,
+    toggleNA,
+    applicableItems,
+    projectedScore,
+    nextAuditDue,
+    reminderStatus,
+    REMINDER_KEY
   };
 }

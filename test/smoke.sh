@@ -215,5 +215,64 @@ check "new UI wiring present" bash -c "
   grep -q 'h-diff' css/style.css
 "
 
+# 25: N/A items are excluded from scoring
+check "N/A items excluded from score" node -e "
+const L=require('./js/logic.js');
+const S=[{id:'s',title:'T',items:[
+  {id:'a',label:'A',weight:5,impact:'high',tip:''},
+  {id:'b',label:'B',weight:3,impact:'medium',tip:''},
+  {id:'c',label:'C',weight:1,impact:'low',tip:''}]}];
+const base=L.computeScore(['a'],S);
+if(base.score!==5||base.maxScore!==9) throw new Error('baseline '+JSON.stringify(base));
+const na=L.computeScore(['a'],S,['c']);
+if(na.score!==5||na.maxScore!==8||na.naCount!==1) throw new Error('na '+JSON.stringify(na));
+const ign=L.computeScore(['a','c'],S,['c']);
+if(ign.score!==5) throw new Error('N/A id must be ignored when checked');
+if(L.toggleNA([],'a').length!==1||L.toggleNA(['a'],'a').length!==0) throw new Error('toggleNA');
+if(L.applicableItems(S,['c']).length!==2) throw new Error('applicableItems');
+const fixes=L.prioritizedFixes(['a'],S,['c']);
+if(fixes.length!==1||fixes[0].id!=='b') throw new Error('fixes must exclude N/A');
+const p=L.sectionProgress(['a'],S,['c'])[0];
+if(p.total!==2||p.checked!==1||p.pct!==50) throw new Error('section progress na: '+JSON.stringify(p));
+const pAll=L.sectionProgress([],S,['a','b','c'])[0];
+if(pAll.total!==0||pAll.pct!==100) throw new Error('empty section should read 100%');
+"
+
+# 26: projected what-if score
+check "projectedScore what-if math" node -e "
+const L=require('./js/logic.js');
+const S=[{id:'s',title:'T',items:[
+  {id:'a',label:'A',weight:5,impact:'high',tip:''},
+  {id:'b',label:'B',weight:3,impact:'medium',tip:''},
+  {id:'c',label:'C',weight:1,impact:'low',tip:''}]}];
+const w=L.projectedScore(['a'],S,['b','c'],[]);
+if(w.score!==9||w.gain!==4||w.maxScore!==9) throw new Error('whatif '+JSON.stringify(w));
+const w2=L.projectedScore([],S,['a'],['b','c']);
+if(w2.score!==5||w2.maxScore!==5||w2.gain!==5) throw new Error('whatif na '+JSON.stringify(w2));
+"
+
+# 27: re-audit reminder dates + status
+check "re-audit reminder dates and status" node -e "
+const L=require('./js/logic.js');
+if(L.nextAuditDue('2026-10-13',30)!=='2026-11-12') throw new Error('due 30d');
+if(L.nextAuditDue('2026-01-31',30)!=='2026-03-02') throw new Error('month clamp: '+L.nextAuditDue('2026-01-31',30));
+if(L.nextAuditDue('bad',30)!=='') throw new Error('bad date');
+if(L.nextAuditDue('2026-10-13',0)!=='') throw new Error('bad days');
+if(L.reminderStatus('2026-10-13',30,'2026-11-20')!=='overdue') throw new Error('overdue');
+if(L.reminderStatus('2026-10-13',30,'2026-11-08')!=='due-soon') throw new Error('due-soon');
+if(L.reminderStatus('2026-10-13',30,'2026-10-20')!=='ok') throw new Error('ok');
+if(L.reminderStatus(null,30)!=='off') throw new Error('off');
+"
+
+# 28: sweep-2 UI wiring
+check "sweep-2 UI wiring present" bash -c "
+  grep -q 'id=\"whatIf\"' index.html &&
+  grep -q 'id=\"reminderSel\"' index.html &&
+  grep -q 'id=\"reminderBanner\"' index.html &&
+  grep -q 'data-na' js/app.js && grep -q 'projectedScore' js/app.js &&
+  grep -q 'reminderStatus' js/app.js && grep -q 'na-pill' css/style.css &&
+  grep -q 'whatif' css/style.css && grep -q 'reminder-banner' css/style.css
+"
+
 echo "--- smoke: $pass passed, $fail failed ---"
 [ "$fail" -eq 0 ]

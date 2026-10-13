@@ -78,6 +78,7 @@
         </select>
         <select id="fixSectionFilter" aria-label="Filter fixes by section"></select>
       </div>
+      <p class="whatif" id="whatIf"></p>
       <ol id="fixList"></ol>
     </section>
 
@@ -106,6 +107,16 @@
     <section class="card history-card">
       <p class="kicker">Flight log</p>
       <h2>Audit history</h2>
+      <div class="reminder-row">
+        <label for="reminderSel">Remind me to re-audit</label>
+        <select id="reminderSel">
+          <option value="">Off</option>
+          <option value="30">Every 30 days</option>
+          <option value="60">Every 60 days</option>
+          <option value="90">Every 90 days</option>
+        </select>
+      </div>
+      <p class="reminder-banner" id="reminderBanner"></p>
       <ul id="historyList"></ul>
     </section>
 

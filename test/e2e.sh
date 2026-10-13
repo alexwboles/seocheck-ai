@@ -174,5 +174,31 @@ const eff2=L.planEffort(L.prioritizedFixes(done2,AUDIT_SECTIONS));
 if(!(eff2.totalMinutes<eff1.totalMinutes)) throw new Error('effort should shrink');
 "
 
+# N/A + what-if + reminders, end to end on the real 28-item bank
+check "N/A, what-if, and re-audit reminders flow" node -e "
+$PRELUDE
+// Owner has no website: mark all 8 Website Basics items N/A
+const web=S=>{};
+const webItems=AUDIT_SECTIONS.find(s=>s.id==='website').items.map(i=>i.id);
+if(webItems.length!==8) throw new Error('website section should have 8 items');
+const fullMax=L.computeScore([],AUDIT_SECTIONS).maxScore;
+const naMax=L.computeScore([],AUDIT_SECTIONS,webItems).maxScore;
+if(!(naMax<fullMax)) throw new Error('N/A must shrink the max score');
+const hi=items.filter(i=>i.impact==='high'&&webItems.indexOf(i.id)<0).map(i=>i.id);
+const score=L.computeScore(hi,AUDIT_SECTIONS,webItems);
+if(score.score!==score.maxScore- (naMax-score.score)) throw new Error('score math');
+const fixes=L.prioritizedFixes(hi,AUDIT_SECTIONS,webItems);
+if(fixes.some(f=>webItems.indexOf(f.id)>=0)) throw new Error('fixes must skip N/A items');
+// What-if: the top 3 remaining fixes lift the score by exactly their weights
+const top3=fixes.slice(0,3).map(f=>f.id);
+const w=L.projectedScore(hi,AUDIT_SECTIONS,top3,webItems);
+const expectGain=top3.reduce((s,id)=>s+items.find(i=>i.id===id).weight,0);
+if(w.gain!==expectGain) throw new Error('what-if gain '+w.gain+' vs '+expectGain);
+// Reminders: last audit 2026-09-01 + 30-day cadence is overdue by mid-October
+const st=L.reminderStatus('2026-09-01',30,'2026-10-13');
+if(st!=='overdue') throw new Error('reminder status: '+st);
+if(L.nextAuditDue('2026-09-01',30)!=='2026-10-01') throw new Error('due date');
+"
+
 echo "--- e2e: $pass passed, $fail failed ---"
 [ "$fail" -eq 0 ]

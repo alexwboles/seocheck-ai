@@ -23,6 +23,12 @@
   var state = loadState();
   var checkedSet = {};
   state.checked.forEach(function (id) { checkedSet[id] = true; });
+  // items marked not-applicable — excluded from scoring
+  var naSet = {};
+  (state.na || []).forEach(function (id) { naSet[id] = true; });
+  function getNaIds() {
+    return Object.keys(naSet).filter(function (id) { return naSet[id]; });
+  }
 
   // per-item work log: { itemId: [{ date, text }] }
   var fixNotes = loadFixNotes(localStorage);
@@ -35,7 +41,7 @@
   ["businessName", "scoreFill", "scoreText", "scoreBand", "sections",
    "fixList", "fixCount", "effortLine", "historyList", "summaryBox", "settingsPanel",
    "openaiKey", "year", "itemSearch", "searchNote", "fixImpactFilter",
-   "fixSectionFilter"
+   "fixSectionFilter", "whatIf", "reminderSel", "reminderBanner"
   ].forEach(function (id) { els[id] = document.getElementById(id); });
 
   // search box for the 28 audit items (toolbar is static HTML, outside re-renders)
@@ -49,9 +55,10 @@
 
   function refresh() {
     var ids = getCheckedIds();
-    var result = computeScore(ids, AUDIT_SECTIONS);
-    var fixes = prioritizedFixes(ids, AUDIT_SECTIONS);
-    var progress = sectionProgress(ids, AUDIT_SECTIONS);
+    var naIds = getNaIds();
+    var result = computeScore(ids, AUDIT_SECTIONS, naIds);
+    var fixes = prioritizedFixes(ids, AUDIT_SECTIONS, naIds);
+    var progress = sectionProgress(ids, AUDIT_SECTIONS, naIds);
 
     // Score bar
     els.scoreFill.style.width = result.score + "%";
@@ -122,9 +129,14 @@
 
         var body = document.createElement("div");
         body.className = "check-body";
+        var isNA = !!naSet[item.id];
+        if (isNA) li.className += " is-na";
         body.innerHTML =
           '<label for="cb-' + item.id + '">' + escapeHtml(item.label) + "</label>" +
           '<span class="impact impact-' + item.impact + '">' + item.impact + "</span>" +
+          (isNA ? '<span class="na-pill">N/A — excluded</span>' : "") +
+          '<button type="button" class="btn btn-small btn-ghost na-toggle" data-na="' + item.id + '">' +
+          (isNA ? "Include again" : "Mark N/A") + "</button>" +
           '<p class="tip">' + escapeHtml(item.tip) + "</p>";
 
         li.appendChild(cb);
@@ -133,6 +145,20 @@
       });
       card.appendChild(list);
       els.sections.appendChild(card);
+    });
+    // N/A toggles (delegated — sections re-render every refresh)
+    els.sections.querySelectorAll(".na-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-na");
+        var ids = toggleNA(getNaIds(), id);
+        naSet = {};
+        ids.forEach(function (x) { naSet[x] = true; });
+        state.na = ids;
+        if (naSet[id] && checkedSet[id]) delete checkedSet[id]; // N/A can't stay checked
+        state.checked = getCheckedIds();
+        persist(state);
+        refresh();
+      });
     });
 
     // Fix list (impact + section filters)
@@ -144,6 +170,13 @@
     var eff = planEffort(visibleFixes);
     els.effortLine.textContent = visibleFixes.length
       ? "≈ " + eff.label + " of work · " + eff.quickWins + " quick win" + (eff.quickWins === 1 ? "" : "s")
+      : "";
+    // what-if: score after the top 3 fixes
+    var top3 = fixes.slice(0, 3).map(function (f) { return f.id; });
+    var proj = projectedScore(ids, AUDIT_SECTIONS, top3, naIds);
+    els.whatIf.textContent = top3.length && proj.gain > 0
+      ? "Finish the top " + top3.length + " fix" + (top3.length === 1 ? "" : "es") +
+        " and your score goes to " + proj.score + "/" + proj.maxScore + " (+" + proj.gain + ")."
       : "";
     els.fixList.innerHTML = "";
     if (fixes.length === 0) {
@@ -198,7 +231,29 @@
     renderHistory();
   }
 
+  function renderReminderBanner() {
+    var sel = els.reminderSel;
+    var days = parseInt(state.reminderDays, 10);
+    var history = loadAudits(localStorage);
+    var last = history.length ? history[history.length - 1].date : (state.auditDate || "");
+    var st = reminderStatus(last, isNaN(days) ? 0 : days);
+    var due = nextAuditDue(last, isNaN(days) ? 0 : days);
+    if (st === "off" || !due) {
+      els.reminderBanner.textContent = "";
+      els.reminderBanner.className = "reminder-banner";
+      return;
+    }
+    var cls = st === "overdue" ? "over" : (st === "due-soon" ? "soon" : "");
+    els.reminderBanner.className = "reminder-banner " + cls;
+    els.reminderBanner.textContent = st === "overdue"
+      ? "Re-audit was due " + due + " — run a fresh audit to keep the score honest."
+      : (st === "due-soon"
+        ? "Re-audit coming due " + due + " — schedule 10 minutes this week."
+        : "Next re-audit due " + due + ".");
+  }
+
   function renderHistory() {
+    renderReminderBanner();
     var history = historyWithDeltas(loadAudits(localStorage));
     els.historyList.innerHTML = "";
     if (history.length === 0) {
@@ -252,8 +307,8 @@
 
   function generateSummary() {
     var ids = getCheckedIds();
-    var result = computeScore(ids, AUDIT_SECTIONS);
-    var fixes = prioritizedFixes(ids, AUDIT_SECTIONS);
+    var result = computeScore(ids, AUDIT_SECTIONS, getNaIds());
+    var fixes = prioritizedFixes(ids, AUDIT_SECTIONS, getNaIds());
     var key = (els.openaiKey.value || "").trim();
 
     function show(text, note) {
@@ -320,7 +375,7 @@
 
   document.getElementById("completeBtn").addEventListener("click", function () {
     var ids = getCheckedIds();
-    var result = computeScore(ids, AUDIT_SECTIONS);
+    var result = computeScore(ids, AUDIT_SECTIONS, getNaIds());
     var today = new Date().toISOString().slice(0, 10);
     saveAudit(localStorage, {
       date: today,
@@ -336,10 +391,19 @@
     els.summaryBox.hidden = false;
   });
 
+  els.reminderSel.value = String(state.reminderDays || "");
+  els.reminderSel.addEventListener("change", function () {
+    state.reminderDays = els.reminderSel.value ? parseInt(els.reminderSel.value, 10) : null;
+    persist(state);
+    renderReminderBanner();
+  });
+
   document.getElementById("resetBtn").addEventListener("click", function () {
     if (!window.confirm("Reset all checkboxes? Your audit history is kept.")) return;
     checkedSet = {};
     state.checked = [];
+    naSet = {};
+    state.na = [];
     persist(state);
     refresh();
   });
