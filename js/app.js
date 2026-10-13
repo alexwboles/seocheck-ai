@@ -38,10 +38,10 @@
   }
 
   var els = {};
-  ["businessName", "scoreFill", "scoreText", "scoreBand", "sections",
+  ["businessName", "scoreFill", "scoreText", "scoreBand", "scoreRing", "sections",
    "fixList", "fixCount", "effortLine", "historyList", "summaryBox", "settingsPanel",
    "openaiKey", "year", "itemSearch", "searchNote", "fixImpactFilter",
-   "fixSectionFilter", "whatIf", "reminderSel", "reminderBanner"
+   "fixSectionFilter", "whatIf", "reminderSel", "reminderBanner", "sevStrip"
   ].forEach(function (id) { els[id] = document.getElementById(id); });
 
   // search box for the 28 audit items (toolbar is static HTML, outside re-renders)
@@ -66,8 +66,16 @@
     els.scoreBand.textContent = result.band;
     els.scoreBand.className = "band band-" + result.band.toLowerCase().replace(/ /g, "-");
 
+    // Severity strip: open-issue counts by impact (Semrush-style).
+    var sevCounts = { high: 0, medium: 0, low: 0 };
+    fixes.forEach(function (f) { sevCounts[f.impact]++; });
+    els.sevStrip.innerHTML =
+      '<span class="sev-chip sev-high">' + sevCounts.high + ' errors</span>' +
+      '<span class="sev-chip sev-med">' + sevCounts.medium + ' warnings</span>' +
+      '<span class="sev-chip sev-low">' + sevCounts.low + ' notices</span>';
+
     // Score dial ring
-    var ring = document.getElementById("scoreRing");
+    var ring = els.scoreRing;
     if (ring) {
       var CIRC = 2 * Math.PI * 54;
       ring.style.strokeDasharray = CIRC.toFixed(1);
@@ -101,9 +109,12 @@
 
       var head = document.createElement("div");
       head.className = "section-head";
+      var health = p.pct === 100 ? '<span class="health ok">Complete</span>'
+        : p.pct > 0 ? '<span class="health warn">In progress</span>'
+        : '<span class="health">Not started</span>';
       head.innerHTML =
         '<span class="sys-n">' + ("0" + (si + 1)) + "</span>" +
-        '<h2>' + escapeHtml(section.title) + "</h2>" +
+        '<h2>' + escapeHtml(section.title) + "</h2>" + health +
         '<div class="sec-progress"><div class="sec-bar"><div class="sec-fill" style="width:' + p.pct + '%"></div></div>' +
         '<span class="sec-pct">' + p.checked + "/" + p.total + "</span></div>";
       card.appendChild(head);
@@ -184,29 +195,45 @@
     } else if (visibleFixes.length === 0) {
       els.fixList.innerHTML = '<li class="all-done">No fixes match the selected filters.</li>';
     } else {
-      visibleFixes.forEach(function (f, idx) {
-        var li = document.createElement("li");
-        li.className = "fix-item";
-        var e = effortFor(f.impact);
-        var notes = fixNotesFor(fixNotes, f.id);
-        li.innerHTML =
-          '<span class="fix-rank">' + (idx + 1) + "</span>" +
-          '<div class="fix-body"><strong>' + escapeHtml(f.label) + "</strong>" +
-          '<span class="fix-meta">' + escapeHtml(f.sectionTitle) + ' · <span class="impact impact-' + f.impact + '">' + f.impact + " impact</span>" +
-          ' · <span class="effort effort-' + f.impact + '">' + escapeHtml(e.label) + "</span></span>" +
-          '<p class="tip">' + escapeHtml(f.tip) + "</p>" +
-          '<button type="button" class="btn btn-small btn-ghost fix-notes-toggle" data-notes="' + f.id + '">Work notes' +
-          (notes.length ? " (" + notes.length + ")" : "") + "</button>" +
-          '<div class="fix-notes" id="notes-' + f.id + '" hidden>' +
-          (notes.length
-            ? '<ul class="note-list">' + notes.map(function (n) {
-              return '<li><span class="note-date">' + escapeHtml(n.date) + "</span> " + escapeHtml(n.text) + "</li>";
-            }).join("") + "</ul>"
-            : '<p class="tip">No notes yet — log what you did as you work through this fix.</p>') +
-          '<div class="fix-note-add"><input type="text" placeholder="Log what you did…" maxlength="500" data-note-input="' + f.id + '" aria-label="Add a work note">' +
-          '<button type="button" class="btn btn-small" data-note-add="' + f.id + '">Add note</button></div>' +
-          "</div></div>";
-        els.fixList.appendChild(li);
+      // Group fixes by impact, Semrush-style (Errors / Warnings / Notices).
+      var groups = [
+        { impact: "high", label: "Errors", cls: "sev-high" },
+        { impact: "medium", label: "Warnings", cls: "sev-med" },
+        { impact: "low", label: "Notices", cls: "sev-low" }
+      ];
+      var rank = 0;
+      groups.forEach(function (g) {
+        var inGroup = visibleFixes.filter(function (f) { return f.impact === g.impact; });
+        if (!inGroup.length) return;
+        var gh = document.createElement("li");
+        gh.className = "fix-group";
+        gh.innerHTML = '<span class="sev-chip ' + g.cls + '">' + inGroup.length + "</span> " + g.label;
+        els.fixList.appendChild(gh);
+        inGroup.forEach(function (f) {
+          rank++;
+          var li = document.createElement("li");
+          li.className = "fix-item sev-border-" + f.impact;
+          var e = effortFor(f.impact);
+          var notes = fixNotesFor(fixNotes, f.id);
+          li.innerHTML =
+            '<span class="fix-rank">' + rank + "</span>" +
+            '<div class="fix-body"><strong>' + escapeHtml(f.label) + "</strong>" +
+            '<span class="fix-meta">' + escapeHtml(f.sectionTitle) +
+            ' · <span class="effort effort-' + f.impact + '">' + escapeHtml(e.label) + "</span></span>" +
+            '<p class="tip">' + escapeHtml(f.tip) + "</p>" +
+            '<button type="button" class="btn btn-small btn-ghost fix-notes-toggle" data-notes="' + f.id + '">Work notes' +
+            (notes.length ? " (" + notes.length + ")" : "") + "</button>" +
+            '<div class="fix-notes" id="notes-' + f.id + '" hidden>' +
+            (notes.length
+              ? '<ul class="note-list">' + notes.map(function (n) {
+                return '<li><span class="note-date">' + escapeHtml(n.date) + "</span> " + escapeHtml(n.text) + "</li>";
+              }).join("") + "</ul>"
+              : '<p class="tip">No notes yet — log what you did as you work through this fix.</p>') +
+            '<div class="fix-note-add"><input type="text" placeholder="Log what you did…" maxlength="500" data-note-input="' + f.id + '" aria-label="Add a work note">' +
+            '<button type="button" class="btn btn-small" data-note-add="' + f.id + '">Add note</button></div>' +
+            "</div></div>";
+          els.fixList.appendChild(li);
+        });
       });
       // work-note interactions
       els.fixList.querySelectorAll(".fix-notes-toggle").forEach(function (btn) {

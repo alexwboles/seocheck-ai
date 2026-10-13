@@ -274,5 +274,12 @@ check "sweep-2 UI wiring present" bash -c "
   grep -q 'whatif' css/style.css && grep -q 'reminder-banner' css/style.css
 "
 
+# 29: severity-grouped fix queue + health pills (redesign 2026-10-13)
+check "severity system wired" bash -c "
+  grep -q 'id=\"sevStrip\"' index.html &&
+  grep -q 'sev-chip' js/app.js && grep -q 'fix-group' js/app.js &&
+  grep -q 'health ok' js/app.js && grep -q 'sev-border-high' css/style.css
+"
+
 echo "--- smoke: $pass passed, $fail failed ---"
 [ "$fail" -eq 0 ]

@@ -324,3 +324,47 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 .reminder-banner.over { font-weight: 700; color: #b91c1c; }
 .reminder-banner.soon { font-weight: 700; color: #b45309; }
 .reminder-banner:empty { display: none; }
+
+/* ---------- redesign 2026-10-13: Semrush-style severity system ---------- */
+.sev-strip { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .2rem; }
+.sev-chip {
+  display: inline-block; font-size: .78rem; font-weight: 800;
+  padding: .3rem .75rem; letter-spacing: .02em; white-space: nowrap;
+}
+.sev-high { background: var(--red-soft); color: var(--red); }
+.sev-med { background: var(--amber-soft); color: var(--amber); }
+.sev-low { background: var(--slate-soft); color: var(--slate); }
+.fix-group {
+  list-style: none; margin: .4rem 0 0; padding: .6rem .2rem 0;
+  font-size: .82rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--ink-soft);
+  border-top: 2px solid var(--ink); display: flex; align-items: center; gap: .6rem;
+}
+.fix-group .sev-chip { font-size: .74rem; }
+.fix-item { border-left-width: 5px; }
+li.fix-item:has(.sev-chip), .fix-item { border-left-style: solid; }
+/* per-severity left borders on fix cards, set inline by group */
+#fixList { gap: 0; }
+#fixList .fix-item { margin-bottom: .6rem; }
+.health {
+  display: inline-block; font-size: .7rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .07em; padding: .22rem .6rem; background: var(--slate-soft); color: var(--slate);
+  margin-left: .4rem;
+}
+.health.ok { background: var(--green-soft); color: var(--green); }
+.health.warn { background: var(--amber-soft); color: var(--amber); }
+/* band color coding: excellent/strong greens, getting-there amber, needs-work red */
+.band-excellent { background: var(--green-soft); color: var(--green); }
+.band-strong { background: #d7efe9; color: #0b6e63; }
+.band-getting-there { background: var(--amber-soft); color: var(--amber); }
+.band-needs-work { background: var(--red-soft); color: var(--red); }
+/* bigger gauge hero */
+.dial-wrap { width: 168px; height: 168px; }
+#scoreText { font-size: 1.5rem; }
+.score-card { padding: 1.7rem 1.8rem; }
+@media (max-width: 640px) {
+  .dial-wrap { width: 150px; height: 150px; }
+}
+.sev-border-high { border-left-color: var(--red); }
+.sev-border-medium { border-left-color: var(--amber); }
+.sev-border-low { border-left-color: var(--slate); }
