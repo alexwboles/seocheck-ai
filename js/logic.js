@@ -288,7 +288,8 @@ function saveAudit(storage, audit) {
     checkedIds: Array.isArray(audit.checkedIds) ? audit.checkedIds.slice() : []
   });
   const trimmed = history.slice(-50);
-  storage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+  // Wrapped so a blocked-storage iframe can't crash the "Complete audit" flow.
+  try { storage.setItem(HISTORY_KEY, JSON.stringify(trimmed)); } catch (e) {}
   return trimmed;
 }
 

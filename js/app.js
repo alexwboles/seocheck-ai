@@ -20,6 +20,13 @@
     } catch (e) {}
   }
 
+  // Reading window.localStorage itself can throw (SecurityError) when storage
+  // is blocked, e.g. an iframe with third-party cookies off — so centralize
+  // access; the logic-layer helpers treat a null store as "no data".
+  function safeLS() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+
   var state = loadState();
   var checkedSet = {};
   state.checked.forEach(function (id) { checkedSet[id] = true; });
@@ -31,7 +38,7 @@
   }
 
   // per-item work log: { itemId: [{ date, text }] }
-  var fixNotes = loadFixNotes(localStorage);
+  var fixNotes = loadFixNotes(safeLS());
 
   function getCheckedIds() {
     return Object.keys(checkedSet).filter(function (id) { return checkedSet[id]; });
@@ -249,7 +256,7 @@
           var res = addFixNote(fixNotes, id, input ? input.value : "");
           if (!res.ok) { if (input) input.focus(); return; }
           fixNotes = res.notes;
-          saveFixNotes(localStorage, fixNotes);
+          saveFixNotes(safeLS(), fixNotes);
           refresh();
         });
       });
@@ -261,7 +268,7 @@
   function renderReminderBanner() {
     var sel = els.reminderSel;
     var days = parseInt(state.reminderDays, 10);
-    var history = loadAudits(localStorage);
+    var history = loadAudits(safeLS());
     var last = history.length ? history[history.length - 1].date : (state.auditDate || "");
     var st = reminderStatus(last, isNaN(days) ? 0 : days);
     var due = nextAuditDue(last, isNaN(days) ? 0 : days);
@@ -281,7 +288,7 @@
 
   function renderHistory() {
     renderReminderBanner();
-    var history = historyWithDeltas(loadAudits(localStorage));
+    var history = historyWithDeltas(loadAudits(safeLS()));
     els.historyList.innerHTML = "";
     if (history.length === 0) {
       els.historyList.innerHTML = '<li class="empty">No completed audits yet. Check every item, then hit "Complete audit".</li>';
@@ -404,7 +411,7 @@
     var ids = getCheckedIds();
     var result = computeScore(ids, AUDIT_SECTIONS, getNaIds());
     var today = new Date().toISOString().slice(0, 10);
-    saveAudit(localStorage, {
+    saveAudit(safeLS(), {
       date: today,
       businessName: state.businessName,
       score: result.score,
